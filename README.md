@@ -41,6 +41,7 @@ problem that a single-chip driver simply does not have.
 | Transmit (interrupt-driven, DMA ring) | Working |
 | Multicast filter (MTA hash) + promiscuous | Working, verified against the SDM's own worked example |
 | Error accounting and ring-exhaustion recovery | Working, verified by driving the ring into overrun on purpose |
+| Link change (cable out and back) | Working, verified with a two-minute unplug under load |
 | Network stack integration (`enN`, ping, TCP) | Working |
 | Boot-time auto-load | Working |
 | Chip family beyond 82547EI | Implemented from the SDM and FreeBSD; **not tested on hardware** |
@@ -354,6 +355,32 @@ descriptor. Neither ever reaches a descriptor, so neither can be seen
 any other way. The hardware resumes on its own once descriptors free
 up — there is nothing to reset — so what the driver adds is the record
 that it happened.
+
+## Losing the cable and getting it back
+
+Tested by unplugging the gigabit port for two minutes while 16k
+packets/s were going out of it:
+
+```
+07:16:11  Pro1000: link down - carrier lost, transmits will not
+                   complete until it returns
+07:18:17  Pro1000: carrier back - link UP, 1000Mb/s, full duplex
+```
+
+The interface came back at the full rate on its own, with no errors
+recorded over the whole episode. Traffic took about a minute longer than
+the cable did to resume, which is TCP's retransmit backoff and nothing
+to do with the driver.
+
+One expectation was wrong and is worth recording. The SDM says
+"indication that the link is not up disables MAC operation", from which
+it follows that transmits should stop completing and the driver's
+watchdog should fire every three seconds. **It never fired once** in
+those two minutes, with TCP retransmitting throughout. The descriptor
+engine goes on consuming descriptors and writing them back without a
+carrier; the frames are simply lost on the wire. The watchdog therefore
+never escalates on a cable pull, and the guard against that is
+defensive, not a fix for anything observed.
 
 ## Things worth knowing before changing this
 

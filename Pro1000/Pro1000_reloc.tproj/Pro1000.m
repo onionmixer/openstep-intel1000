@@ -866,7 +866,9 @@ mcastHash(unsigned char *addr)
     unsigned long	txDropped;	/* transmit queue was full        */
     unsigned long	txFailed;	/* descriptor reported EC/LC/TU   */
     unsigned long	rxOverruns;	/* RXO interrupts                 */
+    unsigned long	txLinkStalls;	/* watchdogs fired with no link   */
     unsigned int	irqSinceHarvest;
+    BOOL		linkUp;		/* last known carrier state       */
 
     enet_addr_t		mcast[MAX_MCAST];
     int			mcastCount;
@@ -1288,6 +1290,8 @@ mcastHash(unsigned char *addr)
      * actually tested, are the two things most worth knowing, so they
      * are repeated here where the log reliably survives.
      */
+    linkUp = (regRead(regBase, E1000_STATUS) & E1000_STATUS_LU) ? YES : NO;
+
     IOLog("Pro1000: %s enabled%s, %d irq, RCTL 0x%08x TCTL 0x%08x"
 	  " STATUS 0x%08x\n",
 	  chip->name,
@@ -1682,10 +1686,48 @@ mcastHash(unsigned char *addr)
 	    }
 	}
 
+	/*
+	 * Link status change.
+	 *
+	 * The SDM is blunt about what losing carrier means: "Indication
+	 * that the link is not up disables MAC operation." Transmits
+	 * stop completing, so the watchdog in -timeoutOccurred has to
+	 * know about this - see there.
+	 *
+	 * Speed and duplex need no programming of ours. CTRL.SLU|ASDE
+	 * was set at enable time, and auto-speed detection makes the
+	 * MAC follow whatever the PHY negotiated; we only read the
+	 * result back to report it.
+	 */
 	if (cause & E1000_ICR_LSC) {
-	    IOLog("Pro1000: link %s\n",
-		  (regRead(regBase, E1000_STATUS) & E1000_STATUS_LU)
-		      ? "up" : "down");
+	    unsigned long status = regRead(regBase, E1000_STATUS);
+	    BOOL	  nowUp  = (status & E1000_STATUS_LU) ? YES : NO;
+
+	    if (nowUp != linkUp) {
+		linkUp = nowUp;
+
+		if (nowUp) {
+		    netbuf_t pending;
+
+		    /*
+		     * Carrier is back. Any watchdogs that fired while
+		     * it was gone were expected and must not count
+		     * towards the give-up threshold, so clear them, and
+		     * push whatever queued up behind the outage.
+		     */
+		    txTimeouts = 0;
+		    [self clearTimeout];
+		    reportLink(regBase, "carrier back -");
+
+		    pending = [transmitQueue dequeue];
+		    if (pending != NULL) {
+			[self transmit:pending];
+		    }
+		} else {
+		    IOLog("Pro1000: link down - carrier lost,"
+			  " transmits will not complete until it returns\n");
+		}
+	    }
 	}
     } while (cause != 0UL);
 
@@ -1936,11 +1978,42 @@ mcastHash(unsigned char *addr)
  */
 - (void)timeoutOccurred
 {
+    unsigned long status = regRead(regBase, E1000_STATUS);
+
+    /*
+     * A transmit that has not completed because there is no cable in
+     * the socket is not a fault. Treating it as one would reach the
+     * give-up path below, which disables interrupts - including the
+     * link-status interrupt that reports the cable being plugged back
+     * in - and the port would stay dead until the machine was rebooted.
+     *
+     * Measured, and it corrects what the SDM's "indication that the
+     * link is not up disables MAC operation" suggests: with the cable
+     * out for two minutes and TCP retransmitting throughout, this
+     * watchdog never fired once. The descriptor engine keeps consuming
+     * and writing back descriptors with no carrier - the frames are
+     * simply lost on the wire - so TXDW still arrives. The guard below
+     * is therefore defensive rather than a fix for something observed.
+     *
+     * The register is read fresh rather than trusting the cached flag,
+     * because the watchdog can fire before the LSC interrupt for the
+     * same event has been serviced.
+     */
+    if (!(status & E1000_STATUS_LU)) {
+	linkUp = NO;
+	txLinkStalls++;
+	if (txLinkStalls == 1UL || (txLinkStalls % 100UL) == 0UL) {
+	    IOLog("Pro1000: transmit stalled with no link (%d),"
+		  " waiting for carrier\n", (int)txLinkStalls);
+	}
+	return;
+    }
+
     IOLog("Pro1000: transmit timeout %d, TDH %d TDT %d STATUS 0x%08x\n",
 	  txTimeouts + 1,
 	  (int)regRead(regBase, E1000_TDH),
 	  (int)regRead(regBase, E1000_TDT),
-	  (unsigned int)regRead(regBase, E1000_STATUS));
+	  (unsigned int)status);
 
     if (++txTimeouts >= MAX_TX_TIMEOUTS) {
 	IOLog("Pro1000: %d consecutive timeouts - stopping. Transmit"
