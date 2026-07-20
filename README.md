@@ -168,7 +168,7 @@ Pro1000/               the driver bundle source
   README-Instance0.md    why that file carries the IRQ, and how to edit it
   English.lproj/         the names Configure.app shows
   Pro1000_reloc.tproj/   the kernel code
-    Pro1000.m            the whole driver, ~1600 lines
+    Pro1000.m            the whole driver, ~2000 lines
     Load_Commands.sect   kern_loader directives (WIRE / START / DETACH)
 
 doc/                   OPENSTEP driver development notes (Korean)
@@ -201,7 +201,8 @@ compression, because the `tar` on these machines is old enough that
 keeping things simple is worth more than the saved bytes.
 
 Verified: extracted on OPENSTEP 4.2 and built with the commands below,
-producing a 117 KB relocatable.
+producing a `Pro1000_reloc` of 122412 bytes — byte for byte what a build
+straight from this repository produces.
 
 ```sh
 # on OPENSTEP, as root
@@ -252,6 +253,9 @@ same file — it is where OPENSTEP expects a network card's IRQ to be
 chosen.
 
 ![Configure.app showing the driver](Configure_APP_SCREENSHOT.png)
+
+The screenshot was taken at version 0.1; the same window now reads
+`(v1.0)`. Everything else about it is current.
 
 Three things in that window are worth reading carefully.
 

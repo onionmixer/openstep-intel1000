@@ -39,17 +39,26 @@ interrupts work, so it looks like something that can be left out. It
 cannot.
 
 Configuration space holds the IRQ the BIOS assigned, but **DriverKit
-does not necessarily know it.** When this driver was first loaded with
-`driverLoader D=`, `+probe:` reported:
+does not necessarily know it.** The driver logs both, so the two can be
+compared. Configuration space, from `+probe:`:
 
 ```
 Pro1000: 8086:1019 at BAR0 0xe8100000 -> 0x222e2000, config IRQ 3
-Pro1000: deviceDescription reports 0 interrupt(s), first -1
 ```
 
-Configuration space said IRQ 3; the device description carried none. With
-no interrupt registered there is nothing for the framework to deliver, so
-`-interruptOccurred` is never called.
+and what the framework actually handed over, on the summary line the
+driver prints once it is enabled:
+
+```
+Pro1000: 82547EI enabled, 0 irq, RCTL 0x04008002 ...
+                            ^^^^^
+```
+
+Configuration space said IRQ 3; the device description carried none.
+With no interrupt registered there is nothing for the framework to
+deliver, so `-interruptOccurred` is never called.
+
+**`0 irq` on that line is the signature of a missing `"IRQ Levels"`.**
 
 The failure is quiet and misleading. Transmits *complete in hardware* —
 the descriptor is consumed and `TDH` reaches `TDT` — while the driver
@@ -57,10 +66,11 @@ waits three seconds for a completion that cannot arrive, then resets the
 device and tries again. It looks like broken transmit; it is a missing
 interrupt.
 
-Adding the key fixed it:
+Adding the key fixed it — the same line then reads:
 
 ```
-Pro1000: deviceDescription reports 1 interrupt(s), first 3
+Pro1000: 82547EI enabled, 1 irq, RCTL 0x04008002 ...
+Pro1000: interrupts flowing, first ICR 0x00000006
 ```
 
 It was tempting to conclude that the boot path is different — that
@@ -70,7 +80,7 @@ it is false.** With the key removed and the machine rebooted, the boot
 path reported:
 
 ```
-Pro1000: ... 0 irq ...
+Pro1000: 82547EI enabled, 0 irq, ...
 ```
 
 No interrupt is assigned at boot either. The key is required on every

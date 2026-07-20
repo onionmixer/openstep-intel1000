@@ -704,7 +704,7 @@ SDM 한 권이 8254x 전체를 다루며, 레지스터 집합·legacy 디스크�
 - **생성은 `tools/make-dist.sh`가 한다.** 손으로 묶지 않는다 — 빌드
   산출물과 개발머신 전용 파일을 빼고, 100자 경로 제한을 미리 검사한다.
 - **실기에서 검증했다**: 풀어서 README에 적은 명령 그대로 빌드해
-  `Pro1000_reloc` **117736 바이트**가 나온다(저장소에서 직접 빌드한
+  `Pro1000_reloc` **122412 바이트**가 나온다(저장소에서 직접 빌드한
   것과 바이트 단위로 동일). `pcils`와 `nxperf`도 함께 빌드된다.
 
 받는 사람이 반드시 고쳐야 하는 것은 `Instance0.table`의 두 줄이다 —
@@ -802,6 +802,53 @@ SDM의 *"indication that the link is not up disables MAC operation"*
 write-back 한다 — 프레임이 선로에서 사라질 뿐 TXDW는 온다. 따라서
 케이블 뽑힘이 영구 정지로 이어지는 일은 없었고, 그에 대한 방어 코드는
 관측된 고장의 수정이 아니라 예방 조치다.
+
+## 1.0 — 진단 로그 정리 (2026-07-20)
+
+버전을 `0.1`에서 **1.0**으로 올렸다. 그 전까지 `Default.table`은
+`Pro1000 0.2`, `Instance0.table`은 `Pro1000 0.1`로 서로 달랐다.
+
+### 무엇을 줄였고 무엇을 남겼나
+
+기준은 **"운용자가 알아야 하는가"** 다. 장치의 정체·상태·결과는
+남기고, 브링업 단계 추적은 지웠다.
+
+지운 것 — 순수 추적:
+
+`+probe: entered`, `quiesce - masking interrupts`, `quiesce done`,
+`asserting PHY_RST`, `PHY_RST survived`, `SLU+ASDE set - waiting for
+link`, `RX ring virt/phys`, `N RX buffers of ...`,
+`deviceDescription reports N interrupt(s)`
+
+남긴 것 — 정체·위험구간·결과:
+
+- 칩 식별과 BAR0/config IRQ (다른 기계에 설치할 때 필요하다)
+- 스테이션 주소, NVM 종류
+- `asserting global RST (no register access for 1200 ms)`와
+  `global RST survived` — **머신을 두 번 멈춘 구간의 표지다.** 행이
+  나면 앞 줄이 마지막 줄이 되어 원인을 정확히 가리킨다
+- `link came up after N ms`, `after init: link UP, 1000Mb/s`
+- `attached to network stack`
+- 요약 줄 `<칩> enabled, N irq, RCTL/TCTL/STATUS`
+- `interrupts flowing, first ICR`
+- 모든 에러·오버런·링크변동 메시지
+
+`deviceDescription reports ...`를 지운 것은 요약 줄의 `N irq`가 같은
+정보를 담기 때문이다. IRQ 진단은 이제 그 줄로 한다
+([Pro1000/README-Instance0.md](Pro1000/README-Instance0.md) 참조).
+
+`MANC`는 실제로 하드웨어 ARP 필터링을 껐을 때만 찍는다. 이전에는
+`0x3c000002 -> 0x3c000002`처럼 아무것도 바뀌지 않아도 매번 찍었다.
+
+### 반복 메시지의 rate limit을 로그 스케일로
+
+`% 100`은 **6초짜리 UDP 폭주 하나에서 107줄**을 만들어 다른 모든 것을
+묻어버렸다. 1·10·100·1000…에서만 찍도록 바꿨다(`logMilestone()`).
+같은 폭주가 5줄이 되고, 각 줄에 누적 카운트가 있으므로 총량은 그대로
+알 수 있다.
+
+> P1~P3 절에 인용된 실기 로그에는 지금은 없는 줄들이 그대로 남아
+> 있다. 당시 기록이므로 손대지 않았다.
 
 ## 이후: 남은 항목
 

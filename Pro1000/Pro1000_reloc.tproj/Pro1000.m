@@ -124,6 +124,27 @@ static ChipInfo chipTable[] = {
     { 0, 0, 0 }
 };
 
+/*
+ * Rate limit for repeating conditions: true at 1, 10, 100, 1000, ...
+ *
+ * A fixed "every hundredth" produced 107 lines from a single six-second
+ * flood, which buries everything else in the log. On a log scale the
+ * same flood is five lines, and the counter in each line still gives
+ * the exact total.
+ */
+static BOOL
+logMilestone(unsigned long n)
+{
+    unsigned long m;
+
+    for (m = 1UL; m != 0UL && m <= n; m *= 10UL) {
+	if (m == n) {
+	    return YES;
+	}
+    }
+    return NO;
+}
+
 static ChipInfo *
 chipLookup(unsigned short device)
 {
@@ -482,7 +503,6 @@ logMac(const char *label, unsigned char *mac, int valid)
 static void
 pro1000Quiesce(vm_address_t base)
 {
-    IOLog("Pro1000: quiesce - masking interrupts, stopping RX/TX\n");
     regWrite(base, E1000_IMC, 0xFFFFFFFFUL);
     regWrite(base, E1000_RCTL, 0UL);
     regWrite(base, E1000_TCTL, E1000_TCTL_PSP);
@@ -490,8 +510,6 @@ pro1000Quiesce(vm_address_t base)
 
     /* let any outstanding bus transactions drain before a reset */
     IOSleep(10);
-    IOLog("Pro1000: quiesce done, CTRL 0x%08x\n",
-	  (unsigned int)regRead(base, E1000_CTRL));
 }
 
 /*
@@ -500,12 +518,9 @@ pro1000Quiesce(vm_address_t base)
 static void
 pro1000PhyReset(vm_address_t base, unsigned long ctrl)
 {
-    IOLog("Pro1000: asserting PHY_RST\n");
     regWrite(base, E1000_CTRL, ctrl | E1000_CTRL_PHY_RST);
     regFlush(base);
     IOSleep(5);
-    IOLog("Pro1000: PHY_RST survived, CTRL 0x%08x\n",
-	  (unsigned int)regRead(base, E1000_CTRL));
 }
 
 /*
@@ -567,10 +582,12 @@ pro1000MacReset(vm_address_t base, unsigned long ctrl,
     /* ASF-enabled boards leave hardware ARP filtering on, which would
      * silently eat frames the driver expects to receive. */
     manc = regRead(base, E1000_MANC);
-    regWrite(base, E1000_MANC, manc & ~E1000_MANC_ARP_EN);
-    regFlush(base);
-    IOLog("Pro1000: MANC 0x%08x -> 0x%08x\n",
-	  (unsigned int)manc, (unsigned int)regRead(base, E1000_MANC));
+    if (manc & E1000_MANC_ARP_EN) {
+	regWrite(base, E1000_MANC, manc & ~E1000_MANC_ARP_EN);
+	regFlush(base);
+	IOLog("Pro1000: MANC 0x%08x - hardware ARP filtering turned off\n",
+	      (unsigned int)manc);
+    }
 }
 
 /*
@@ -616,8 +633,6 @@ pro1000SetupLink(vm_address_t base)
     regWrite(base, E1000_CTRL, ctrl);
     regFlush(base);
 
-    IOLog("Pro1000: SLU+ASDE set, CTRL 0x%08x - waiting for link\n",
-	  (unsigned int)regRead(base, E1000_CTRL));
 
     for (waited = 0; waited < LINK_WAIT_MS; waited += LINK_POLL_MS) {
 	status = regRead(base, E1000_STATUS);
@@ -728,10 +743,6 @@ rxAlloc(vm_address_t *ringAllocOut, vm_address_t *ringOut,
 	return 0;
     }
 
-    IOLog("Pro1000: RX ring virt 0x%x phys 0x%x (%d desc, %d bytes)\n",
-	  (unsigned int)*ringOut, (unsigned int)*ringPhysOut,
-	  NRXDESC, RXDESC_BYTES);
-
     for (i = 0; i < NRXDESC; i++) {
 	bufs[i] = allocDmaBlock(RXBUF_SIZE, &bufAllocs[i], &bufPhys[i]);
 	if (bufs[i] == 0) {
@@ -740,10 +751,6 @@ rxAlloc(vm_address_t *ringAllocOut, vm_address_t *ringOut,
 	}
     }
 
-    IOLog("Pro1000: %d RX buffers of %d bytes, first phys 0x%x,"
-	  " last phys 0x%x\n",
-	  NRXDESC, RXBUF_SIZE,
-	  (unsigned int)bufPhys[0], (unsigned int)bufPhys[NRXDESC - 1]);
     return 1;
 }
 
@@ -891,7 +898,6 @@ mcastHash(unsigned char *addr)
 {
     Pro1000 *dev;
 
-    IOLog("Pro1000: +probe: entered\n");
 
     dev = [self alloc];
     if (dev == nil) {
@@ -1045,9 +1051,9 @@ mcastHash(unsigned char *addr)
 	      (eecd & E1000_EECD_TYPE) ? "SPI" : "Microwire");
     }
 
+    /* Reported on the summary line at the end of -resetAndEnable:; a
+     * count of zero there is the signature of a missing "IRQ Levels". */
     irqCount = [devDesc numInterrupts];
-    IOLog("Pro1000: deviceDescription reports %d interrupt(s), first %d\n",
-	  irqCount, (irqCount > 0) ? [devDesc interrupt] : -1);
 
     /*
      * Reset before reading the station address: the hardware reloads
@@ -1494,7 +1500,7 @@ mcastHash(unsigned char *addr)
 	    if (network != nil) {
 		[network incrementOutputErrors];
 	    }
-	    if (txFailed == 1UL || (txFailed % 1000UL) == 0UL) {
+	    if (logMilestone(txFailed)) {
 		IOLog("Pro1000: transmit error, status 0x%02x (%s%s%s),"
 		      " %d so far\n",
 		      (unsigned int)status,
@@ -1546,7 +1552,7 @@ mcastHash(unsigned char *addr)
 	    if (network != nil) {
 		[network incrementInputErrors];
 	    }
-	    if (rxBadFrames == 1UL || (rxBadFrames % 1000UL) == 0UL) {
+	    if (logMilestone(rxBadFrames)) {
 		IOLog("Pro1000: receive error, errors 0x%02x length %d,"
 		      " %d so far\n",
 		      (unsigned int)ring[rxNext].errors, (int)length,
@@ -1565,7 +1571,7 @@ mcastHash(unsigned char *addr)
 		if (network != nil) {
 		    [network incrementInputErrors];
 		}
-		if (rxNoMbufs == 1UL || (rxNoMbufs % 1000UL) == 0UL) {
+		if (logMilestone(rxNoMbufs)) {
 		    IOLog("Pro1000: no netbuf for a %d byte frame,"
 			  " %d dropped so far\n",
 			  (int)length, (int)rxNoMbufs);
@@ -1651,7 +1657,7 @@ mcastHash(unsigned char *addr)
 	    [self _harvestStatistics];
 
 	    rxOverruns++;
-	    if (rxOverruns == 1UL || (rxOverruns % 100UL) == 0UL) {
+	    if (logMilestone(rxOverruns)) {
 		/*
 		 * The interface's own error count is echoed back so the
 		 * log shows what the rest of the system sees, not just
@@ -1794,7 +1800,7 @@ mcastHash(unsigned char *addr)
 	    if (network != nil) {
 		[network incrementOutputErrors];
 	    }
-	    if (txDropped == 1UL || (txDropped % 1000UL) == 0UL) {
+	    if (logMilestone(txDropped)) {
 		IOLog("Pro1000: transmit queue full, %d frames dropped\n",
 		      (int)txDropped);
 	    }
@@ -2002,7 +2008,7 @@ mcastHash(unsigned char *addr)
     if (!(status & E1000_STATUS_LU)) {
 	linkUp = NO;
 	txLinkStalls++;
-	if (txLinkStalls == 1UL || (txLinkStalls % 100UL) == 0UL) {
+	if (logMilestone(txLinkStalls)) {
 	    IOLog("Pro1000: transmit stalled with no link (%d),"
 		  " waiting for carrier\n", (int)txLinkStalls);
 	}
