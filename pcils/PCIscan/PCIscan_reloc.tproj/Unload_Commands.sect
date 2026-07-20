@@ -1,0 +1,4 @@
+#
+# Nothing to tear down: the scan allocates no kernel resources and
+# leaves no references behind.
+#

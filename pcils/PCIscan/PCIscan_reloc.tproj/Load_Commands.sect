@@ -1,0 +1,14 @@
+#
+# Load commands for the PCIscan kernel server.
+#
+# The scan runs as part of the load sequence: CALL invokes pciScanEntry
+# during initialization, so no DriverKit device matching and no Mach
+# port traffic are involved. Results go out through IOLog; the userland
+# front end (pcils) harvests them from the system log.
+#
+# START is required because this server listens on no ports - without it
+# kern_loader would wait for a message that never comes.
+#
+CALL pciScanEntry 0
+WIRE
+START

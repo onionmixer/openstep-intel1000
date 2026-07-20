@@ -1,0 +1,22 @@
+# site.conf.sample - 이 설치본의 실제 주소·토큰. 복사해서 채워 쓴다.
+#
+#   cp etc/site.conf.sample etc/site.conf     # 그리고 아래 값을 수정
+#   ./tools/gen-conf.sh                       # 파생 설정파일 생성
+#
+# etc/site.conf 는 gitignore된다. 저장소에 커밋되는 파일에는 실제
+# IP·계정·토큰을 넣지 않는다 (예시 주소는 RFC 5737 192.0.2.x).
+#
+# sh 문법이며 tools/*.sh가 source 한다.
+
+# OPENSTEP 실기 (telnet 23 / gcdsd 9910)
+NEXT_HOST=192.0.2.18
+
+# 이 Linux 호스트를 OPENSTEP 쪽에서 부르는 주소 (gnfsd 서버)
+NFS_SERVER=192.0.2.16
+
+# OPENSTEP에서 이 워크스페이스가 마운트되는 지점
+MOUNTPT=/ndrv
+
+# gcdsd 공유 토큰과 포트 (원격의 gcdsd.cnf와 일치해야 한다)
+GCDS_TOKEN=changeme
+GCDS_PORT=9910

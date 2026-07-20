@@ -1,0 +1,108 @@
+00:00.0 Host bridge [0600]: Intel 82865G/PE/P Host Bridge [8086:2570] rev 02
+	Subsystem: [10cf:121c] Fujitsu
+	Command 0x0106, Status 0x2090
+	BAR0: mem  0xec000000 (32-bit, prefetchable)
+	Config header:
+	  00: 25708086 20900106 06000002 00000000
+	  10: ec000008 00000000 00000000 00000000
+	  20: 00000000 00000000 00000000 121c10cf
+	  30: 00000000 000000e4 00000000 00000000
+00:02.0 Display controller [0380]: Intel 82865G Integrated Graphics [8086:2572] rev 02
+	Subsystem: [10cf:120d] Fujitsu
+	IRQ 10, pin A
+	Command 0x0000, Status 0x0090
+	BAR0: mem  0xf0000000 (32-bit, prefetchable)
+	BAR1: mem  0xe8080000 (32-bit, non-prefetchable)
+	BAR2: io   0x1090
+	Config header:
+	  00: 25728086 00900000 03800002 00000000
+	  10: f0000008 e8080000 00001091 00000000
+	  20: 00000000 00000000 00000000 120d10cf
+	  30: 00000000 000000d0 00000000 0000010a
+00:03.0 PCI bridge [0604]: Intel 82865G/PE/P PCI-to-CSA Bridge [8086:2573] rev 02
+	Bridge: primary 00, secondary 02, subordinate 02
+	Command 0x0107, Status 0x00a0
+	Config header:
+	  00: 25738086 00a00107 06040002 00014000
+	  10: 00000000 00000000 00020200 22a02020
+	  20: e810e810 0000fff0 00000000 00000000
+	  30: 00000000 00000000 00000000 00040000
+00:1e.0 PCI bridge [0604]: Intel 82801 PCI Bridge [8086:244e] rev c2
+	Bridge: primary 00, secondary 03, subordinate 04
+	Command 0x0107, Status 0x0080
+	Config header:
+	  00: 244e8086 00800107 060400c2 00010000
+	  10: 00000000 00000000 20040300 22803030
+	  20: e8f0e820 f9f0f800 00000000 00000000
+	  30: 00000000 00000000 00000000 000c0000
+00:1f.0 ISA bridge [0601]: Intel 82801EB/ER LPC Interface (ICH5) [8086:24d0] rev 02
+	Command 0x000f, Status 0x0280
+	Config header:
+	  00: 24d08086 0280000f 06010002 00800000
+	  10: 00000000 00000000 00000000 00000000
+	  20: 00000000 00000000 00000000 00000000
+	  30: 00000000 00000000 00000000 00000000
+00:1f.1 IDE interface [0101]: Intel 82801EB/ER IDE Controller [8086:24db] rev 02
+	Programming interface 0x8a
+	Subsystem: [10cf:121d] Fujitsu
+	IRQ 255, pin A
+	Command 0x0005, Status 0x0288
+	BAR4: io   0x1080
+	Config header:
+	  00: 24db8086 02880005 01018a02 00000000
+	  10: 00000001 00000001 00000001 00000001
+	  20: 00001081 00000000 00000000 121d10cf
+	  30: 00000000 00000000 00000000 000001ff
+00:1f.3 SMBus controller [0c05]: Intel 82801EB/ER SMBus Controller [8086:24d3] rev 02
+	Subsystem: [10cf:121d] Fujitsu
+	IRQ 9, pin B
+	Command 0x0001, Status 0x0280
+	BAR4: io   0x1060
+	Config header:
+	  00: 24d38086 02800001 0c050002 00000000
+	  10: 00000000 00000000 00000000 00000000
+	  20: 00001061 00000000 00000000 121d10cf
+	  30: 00000000 00000000 00000000 00000209
+02:01.0 Ethernet controller [0200]: Intel 82547EI Gigabit Ethernet (CSA) [8086:1019] rev 00
+	Subsystem: [10cf:11bc] Fujitsu
+	IRQ 3, pin A
+	Command 0x0007, Status 0x0238
+	BAR0: mem  0xe8100000 (32-bit, non-prefetchable)
+	BAR2: io   0x2000
+	Config header:
+	  00: 10198086 02380007 02000000 00000008
+	  10: e8100000 00000000 00002001 00000000
+	  20: 00000000 00000000 00000000 11bc10cf
+	  30: 00000000 000000dc 00000000 00ff0103
+03:0b.0 Ethernet controller [0200]: DEC DECchip 21041 (Tulip) 10Mb Ethernet [1011:0014] rev 21
+	IRQ 9, pin A
+	Command 0x0105, Status 0x0280
+	BAR0: io   0x3000
+	BAR1: mem  0xe8200000 (32-bit, non-prefetchable)
+	Config header:
+	  00: 00141011 02800105 02000021 00004000
+	  10: 00003001 e8200000 00000000 00000000
+	  20: 00000000 00000000 00000000 00000000
+	  30: 00000000 00000000 00000000 00000109
+03:0d.0 PCI bridge [0604]: HiNT HB4 PCI-to-PCI Bridge [3388:0021] rev 15
+	Bridge: primary 03, secondary 04, subordinate 04
+	Command 0x0307, Status 0x0290
+	Config header:
+	  00: 00213388 02900307 06040015 00016308
+	  10: 00000000 00000000 45040403 228001f1
+	  20: e8f0e830 f9f1f801 00000000 00000000
+	  30: 00000000 00000080 00000000 000c00ff
+04:00.0 VGA compatible controller [0300]: Matrox MGA G400/G450 [102b:0525] rev 85
+	Subsystem: [102b:0d43] Matrox
+	IRQ 11, pin A
+	Command 0x0007, Status 0x0290
+	BAR0: mem  0xf8000000 (32-bit, prefetchable)
+	BAR1: mem  0xe8300000 (32-bit, non-prefetchable)
+	BAR2: mem  0xe8800000 (32-bit, non-prefetchable)
+	Config header:
+	  00: 0525102b 02900007 03000085 00008008
+	  10: f8000008 e8300000 e8800000 00000000
+	  20: 00000000 00000000 00000000 0d43102b
+	  30: 00000000 000000dc 00000000 2010010b
+
+11 PCI functions found

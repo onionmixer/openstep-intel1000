@@ -1,0 +1,11 @@
+"Title" = "PCIscan";
+"Family" = "Bus";
+"Instance" = "0";
+"Version" = "1.0";
+"Driver Name" = "PCIscan";
+"Class Names" = "PCIscan";
+"Server Name" = "PCIscan";
+"IRQ Levels" = "";
+"DMA Channels" = "";
+"Memory Maps" = "";
+"I/O Ports" = "";
