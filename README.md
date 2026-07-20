@@ -158,6 +158,8 @@ Handled with flags rather than assumptions:
 
 ```
 README.md              this file
+LICENSE                BSD 2-Clause, plus what was consulted while
+                       writing this and what was not
 dist/                  openstep-intel1000-src.tar — everything needed to
                        build on an OPENSTEP machine, nothing else required.
                        Not committed; regenerate with tools/make-dist.sh
@@ -402,6 +404,23 @@ engine goes on consuming descriptors and writing them back without a
 carrier; the frames are simply lost on the wire. The watchdog therefore
 never escalates on a cable pull, and the guard against that is
 defensive, not a fix for anything observed.
+
+## Licence
+
+BSD 2-Clause — see [LICENSE](LICENSE).
+
+The driver is original work. Intel's manual for the family is its
+primary specification, and two BSD-licensed drivers were consulted while
+writing it: FreeBSD's `sys/dev/e1000`, which is the only readily
+available implementation covering the 82547, and Minix 3's, which is a
+useful example of how little is required to drive one of these parts.
+No code from either was copied, and neither is redistributed here.
+LICENSE says exactly what each contributed; the source comments cite
+them at the individual decisions.
+
+Worth repeating from there, because it is the reason to trust the
+register definitions: every offset in this driver was written down only
+after FreeBSD's `e1000_regs.h` and Intel's manual agreed on it.
 
 ## Things worth knowing before changing this
 

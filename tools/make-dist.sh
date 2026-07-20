@@ -32,6 +32,7 @@ rm -f "$D/pcils"/scan-*.txt
 cp perf/nxperf.c "$D/"
 
 # the documentation, which is the same README the repository carries
+cp LICENSE "$D/"
 cp README.md "$D/"
 cp Configure_APP_SCREENSHOT.png "$D/"
 

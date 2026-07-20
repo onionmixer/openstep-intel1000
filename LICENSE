@@ -1,0 +1,84 @@
+BSD 2-Clause License
+
+Copyright (c) 2026, Peter Yoo
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED
+TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+================================================================
+Acknowledgements
+================================================================
+
+This driver was written from scratch for OPENSTEP 4.2. Its primary
+specification is Intel's own manual, and two existing BSD-licensed
+drivers were consulted while writing it. No source code from either was
+copied into this work, and neither is redistributed here — the local
+copies used during development live in ref/, which is excluded from the
+repository and from the distribution tarball. They are acknowledged
+because reading them saved real time and because several decisions in
+this driver are cited to them in the source comments.
+
+Intel, "PCI/PCI-X Family of Gigabit Ethernet Controllers Software
+Developer's Manual" (317453, rev 4.0)
+
+    The primary specification. Register offsets and layouts, the
+    mandatory settling time after a global reset, the multicast hash,
+    the CSA interrupt-mask ordering requirement for the 82547, and the
+    statistics-register semantics all come from here.
+
+FreeBSD, sys/dev/e1000 — Copyright (c) 2001-2020, Intel Corporation,
+distributed under BSD-3-Clause
+
+    The only readily available implementation that covers the 82547.
+    Consulted for which parts of the family need the PHY reset issued
+    before the MAC and which cannot accept a memory-space global reset
+    (e1000_82541.c gates both on mac.type), for the set of receive
+    descriptor error bits that mean a frame is bad
+    (E1000_RXD_ERR_FRAME_ERR_MASK), and for the multicast hash. Its
+    register headers were used as a second opinion: every offset in this
+    driver was taken only after FreeBSD's e1000_regs.h and the Intel
+    manual agreed on it.
+
+Minix 3, minix/drivers/net/e1000 — distributed under BSD-3-Clause
+(these files note that parts derive from DragonflyBSD/FreeBSD)
+
+    A compact implementation, useful as a structural reference for how
+    little is actually required to drive one of these parts. Its
+    treatment of the transmit-queue-empty and transmit-descriptor-written
+    interrupt causes as interchangeable is followed here. It does not
+    support the 82547.
+
+Also consulted, from the OPENSTEP installation itself: NeXT's SMC16 and
+AMDPCSCSIDriver DriverKit examples, and the NextDev documentation for
+the loadable-kernel-server load commands. These are NeXT's material,
+were used as documentation of the platform's own conventions, and are
+likewise not redistributed here.
+
+On GPL sources. The project set out to treat BSD-licensed drivers as the
+implementation reference and GPL ones (Linux, U-Boot) as background
+reading only, never as something to copy from — the rule is recorded in
+PLAN.md and ref/README.md. In the event no GPL e1000 source was even
+available on the development machine, which carries Linux headers but no
+driver sources. Nothing in this work derives from them.
