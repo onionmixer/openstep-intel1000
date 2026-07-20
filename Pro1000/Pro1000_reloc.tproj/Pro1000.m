@@ -226,11 +226,73 @@ chipLookup(unsigned short device)
 #define E1000_ICR_TXDW		0x00000001UL	/* TX descriptor written */
 #define E1000_ICR_TXQE		0x00000002UL	/* TX queue empty        */
 #define E1000_ICR_LSC		0x00000004UL	/* link status change    */
+#define E1000_ICR_RXSEQ		0x00000008UL	/* receive sequence error */
 #define E1000_ICR_RXDMT0	0x00000010UL	/* RX ring running low   */
+#define E1000_ICR_RXO		0x00000040UL	/* receiver overrun      */
 #define E1000_ICR_RXT0		0x00000080UL	/* RX timer / packet     */
 
 /* RX descriptor status/error bits */
 #define E1000_RXD_STAT_DD	0x01		/* descriptor done     */
+
+/*
+ * Receive error bits. This is FreeBSD's E1000_RXD_ERR_FRAME_ERR_MASK -
+ * the errors that mean the frame itself is bad. TCPE and IPE are
+ * deliberately left out: they are checksum-offload results, and with
+ * offload disabled they carry no meaning.
+ */
+#define E1000_RXD_ERR_CE	0x01		/* CRC error           */
+#define E1000_RXD_ERR_SE	0x02		/* symbol error        */
+#define E1000_RXD_ERR_SEQ	0x04		/* sequence error      */
+#define E1000_RXD_ERR_CXE	0x10		/* carrier extension   */
+#define E1000_RXD_ERR_RXE	0x80		/* receive data error  */
+#define E1000_RXD_ERR_FRAME	(E1000_RXD_ERR_CE | E1000_RXD_ERR_SE \
+				 | E1000_RXD_ERR_SEQ | E1000_RXD_ERR_CXE \
+				 | E1000_RXD_ERR_RXE)
+
+/* TX descriptor status bits (written back because CMD_RS is set) */
+#define E1000_TXD_STAT_DD	0x01		/* descriptor done     */
+#define E1000_TXD_STAT_EC	0x02		/* excess collisions   */
+#define E1000_TXD_STAT_LC	0x04		/* late collision      */
+#define E1000_TXD_STAT_TU	0x08		/* transmit underrun   */
+#define E1000_TXD_STAT_FAIL	(E1000_TXD_STAT_EC | E1000_TXD_STAT_LC \
+				 | E1000_TXD_STAT_TU)
+
+/*
+ * Statistics registers.
+ *
+ * Offsets checked against two independent sources: FreeBSD's
+ * e1000_regs.h and the SDM's own register listing (13.7).
+ *
+ * **Every one of these resets when read** (SDM 13.7), so a read returns
+ * the count since the previous read and nothing can be counted twice.
+ * They are also *not* initialised by hardware - the SDM says their
+ * value after reset is unknown and that software must read them all to
+ * clear them before enabling the receive and transmit channels. That is
+ * what -_clearStatistics does; without it the first harvest would
+ * report whatever garbage the registers powered up holding.
+ *
+ * They stick at 0xFFFFFFFF rather than wrapping, so they have to be
+ * read often enough to stay well short of that.
+ */
+#define E1000_CRCERRS	0x04000		/* CRC errors                  */
+#define E1000_ALGNERRC	0x04004		/* alignment errors            */
+#define E1000_RXERRC	0x0400C		/* receive errors              */
+#define E1000_MPC	0x04010		/* missed packets (RX FIFO full) */
+#define E1000_SCC	0x04014		/* single collisions           */
+#define E1000_ECOL	0x04018		/* excessive collisions        */
+#define E1000_MCC	0x0401C		/* multiple collisions         */
+#define E1000_LATECOL	0x04020		/* late collisions             */
+#define E1000_COLC	0x04028		/* total collisions            */
+#define E1000_DC	0x04030		/* defer count                 */
+#define E1000_TNCRS	0x04034		/* transmit with no carrier    */
+#define E1000_SEC	0x04038		/* sequence errors             */
+#define E1000_CEXTERR	0x0403C		/* carrier extension errors    */
+#define E1000_RLEC	0x04040		/* receive length errors       */
+#define E1000_RNBC	0x040A0		/* receives with no buffer     */
+#define E1000_RUC	0x040A4		/* receive undersize           */
+#define E1000_RFC	0x040A8		/* receive fragment            */
+#define E1000_ROC	0x040AC		/* receive oversize            */
+#define E1000_RJC	0x040B0		/* receive jabber              */
 
 /* EECD bits, for reporting what kind of NVM is fitted */
 #define E1000_EECD_PRES		0x00000100UL	/* NVM present         */
@@ -793,6 +855,18 @@ mcastHash(unsigned char *addr)
     vm_address_t	txBufAllocs[NTXDESC], txBufs[NTXDESC];
     unsigned long	txBufPhys[NTXDESC];
     int			txTimeouts;
+    int			txDone;		/* oldest descriptor not yet reaped */
+
+    /* Error accounting. The OS counters are write-only from here, so
+     * these keep a running total for the log. */
+    unsigned long	rxMissed;	/* MPC  - RX FIFO had no room     */
+    unsigned long	rxNoBuffer;	/* RNBC - ring had no descriptor  */
+    unsigned long	rxBadFrames;	/* descriptors flagged in error   */
+    unsigned long	rxNoMbufs;	/* nb_alloc failed                */
+    unsigned long	txDropped;	/* transmit queue was full        */
+    unsigned long	txFailed;	/* descriptor reported EC/LC/TU   */
+    unsigned long	rxOverruns;	/* RXO interrupts                 */
+    unsigned int	irqSinceHarvest;
 
     enet_addr_t		mcast[MAX_MCAST];
     int			mcastCount;
@@ -804,6 +878,9 @@ mcastHash(unsigned char *addr)
 - (void)_rearmInterrupts;
 - (void)_writeMulticastTable;
 - (void)_applyReceiveFilter;
+- (void)_clearStatistics;
+- (void)_harvestStatistics;
+- (void)_reapTransmit;
 @end
 
 @implementation Pro1000
@@ -1168,6 +1245,11 @@ mcastHash(unsigned char *addr)
     regWrite(regBase, E1000_TDH, 0UL);
     regWrite(regBase, E1000_TDT, 0UL);
     regWrite(regBase, E1000_TIPG, E1000_TIPG_COPPER);
+    txDone = 0;
+
+    /* Before the engines start, as the SDM requires - the counters
+     * power up holding unknown values. */
+    [self _clearStatistics];
 
     pro1000RequestLink(regBase);
 
@@ -1278,6 +1360,7 @@ mcastHash(unsigned char *addr)
      */
     regWrite(regBase, E1000_IMS,
 	     E1000_ICR_RXT0 | E1000_ICR_RXDMT0
+	     | E1000_ICR_RXO | E1000_ICR_RXSEQ
 	     | E1000_ICR_TXDW | E1000_ICR_TXQE
 	     | E1000_ICR_LSC);
     regFlush(regBase);
@@ -1290,6 +1373,137 @@ mcastHash(unsigned char *addr)
 	regFlush(regBase);
     }
     [super disableAllInterrupts];
+}
+
+/*
+ * Read every statistics register once, discarding the values.
+ *
+ * The SDM requires this: the counters are not hardware initialised,
+ * their value after reset is unknown, and "software should read the
+ * contents of all registers in order to clear them prior to enabling
+ * the receive and transmit channels". Skipping it makes the first
+ * harvest report power-on garbage as errors.
+ */
+- (void)_clearStatistics
+{
+    static const int stats[] = {
+	E1000_CRCERRS, E1000_ALGNERRC, E1000_RXERRC, E1000_MPC,
+	E1000_SCC,     E1000_ECOL,     E1000_MCC,    E1000_LATECOL,
+	E1000_COLC,    E1000_DC,       E1000_TNCRS,  E1000_SEC,
+	E1000_CEXTERR, E1000_RLEC,     E1000_RNBC,   E1000_RUC,
+	E1000_RFC,     E1000_ROC,      E1000_RJC
+    };
+    int i;
+
+    for (i = 0; i < (int)(sizeof(stats) / sizeof(stats[0])); i++) {
+	(void)regRead(regBase, stats[i]);
+    }
+
+    rxMissed	    = 0UL;
+    rxNoBuffer	    = 0UL;
+    rxOverruns	    = 0UL;
+    irqSinceHarvest = 0;
+}
+
+/*
+ * Fold the hardware's error counters into the interface statistics that
+ * `netstat -i' shows.
+ *
+ * Only the counters that describe frames the driver cannot otherwise
+ * see are taken:
+ *
+ *   MPC  - the receive FIFO was full, so the frame never reached a
+ *          descriptor at all
+ *   RNBC - a frame arrived while head and tail were equal, meaning the
+ *          ring was out of descriptors
+ *
+ * CRCERRS, RLEC and RXERRC are deliberately *not* added. Those frames
+ * do reach a descriptor, where -_serviceReceive already counts them
+ * from the error byte; adding the registers as well would report every
+ * such frame twice.
+ */
+- (void)_harvestStatistics
+{
+    unsigned long missed, noBuffer, collisions;
+
+    if (regBase == 0) {
+	return;
+    }
+
+    missed	= regRead(regBase, E1000_MPC);
+    noBuffer	= regRead(regBase, E1000_RNBC);
+    collisions	= regRead(regBase, E1000_COLC);
+
+    rxMissed   += missed;
+    rxNoBuffer += noBuffer;
+    irqSinceHarvest = 0;
+
+    if (network == nil) {
+	return;
+    }
+
+    if (missed != 0UL || noBuffer != 0UL) {
+	[network incrementInputErrorsBy:(unsigned)(missed + noBuffer)];
+    }
+    if (collisions != 0UL) {
+	[network incrementCollisionsBy:(unsigned)collisions];
+    }
+}
+
+/*
+ * Inspect the transmit descriptors the hardware has finished with.
+ *
+ * Completion alone was never checked before: the driver only cancelled
+ * its watchdog and moved on, so a frame the hardware gave up on - too
+ * many collisions, a late collision, a FIFO underrun - was
+ * indistinguishable from one that went out cleanly.
+ *
+ * The descriptors carry that verdict because CMD_RS is set on every
+ * one, which asks the hardware to write status back.
+ */
+- (void)_reapTransmit
+{
+    TxDesc *ring = (TxDesc *)txRing;
+    int	    head;
+    int	    guard = NTXDESC;
+
+    head = (int)regRead(regBase, E1000_TDH);
+
+    /*
+     * A device that has stopped responding reads back as all-ones, and
+     * this runs in the interrupt handler: walking towards a head of
+     * 0xFFFFFFFF would spin forever with interrupts off, which on this
+     * machine means it never comes back. Range-check before trusting
+     * it, and bound the loop as well - the ring cannot need more than
+     * NTXDESC steps, so anything more means the state is wrong.
+     */
+    if (head < 0 || head >= NTXDESC) {
+	return;
+    }
+
+    while (txDone != head && guard-- > 0) {
+	unsigned char status = ring[txDone].status;
+
+	if ((status & E1000_TXD_STAT_DD)
+	    && (status & E1000_TXD_STAT_FAIL)) {
+	    txFailed++;
+	    if (network != nil) {
+		[network incrementOutputErrors];
+	    }
+	    if (txFailed == 1UL || (txFailed % 1000UL) == 0UL) {
+		IOLog("Pro1000: transmit error, status 0x%02x (%s%s%s),"
+		      " %d so far\n",
+		      (unsigned int)status,
+		      (status & E1000_TXD_STAT_EC) ? "excess collisions " : "",
+		      (status & E1000_TXD_STAT_LC) ? "late collision " : "",
+		      (status & E1000_TXD_STAT_TU) ? "underrun" : "",
+		      (int)txFailed);
+	    }
+	}
+
+	ring[txDone].status = 0;
+	txDone = (txDone + 1) % NTXDESC;
+    }
 }
 
 /*
@@ -1317,10 +1531,42 @@ mcastHash(unsigned char *addr)
 	unsigned int length = (unsigned int)ring[rxNext].length;
 	netbuf_t     pkt    = NULL;
 
-	if (ring[rxNext].errors == 0 && length >= 14
-	    && length <= RXBUF_SIZE) {
+	if ((ring[rxNext].errors & E1000_RXD_ERR_FRAME) != 0
+	    || length < 14 || length > RXBUF_SIZE) {
+	    /*
+	     * A frame the hardware marked bad, or one whose length
+	     * cannot be right. Counted here rather than from CRCERRS
+	     * and friends so that each bad frame is reported once.
+	     */
+	    rxBadFrames++;
+	    if (network != nil) {
+		[network incrementInputErrors];
+	    }
+	    if (rxBadFrames == 1UL || (rxBadFrames % 1000UL) == 0UL) {
+		IOLog("Pro1000: receive error, errors 0x%02x length %d,"
+		      " %d so far\n",
+		      (unsigned int)ring[rxNext].errors, (int)length,
+		      (int)rxBadFrames);
+	    }
+	} else {
 	    pkt = nb_alloc(length);
-	    if (pkt != NULL) {
+	    if (pkt == NULL) {
+		/*
+		 * Out of netbufs. The descriptor is still returned
+		 * below - starving the hardware of descriptors on top
+		 * of a memory shortage would turn a transient problem
+		 * into a stalled receiver.
+		 */
+		rxNoMbufs++;
+		if (network != nil) {
+		    [network incrementInputErrors];
+		}
+		if (rxNoMbufs == 1UL || (rxNoMbufs % 1000UL) == 0UL) {
+		    IOLog("Pro1000: no netbuf for a %d byte frame,"
+			  " %d dropped so far\n",
+			  (int)length, (int)rxNoMbufs);
+		}
+	    } else {
 		IOCopyMemory((void *)rxBufs[rxNext], nb_map(pkt),
 			     length, 1);
 	    }
@@ -1385,8 +1631,40 @@ mcastHash(unsigned char *addr)
 	    [self _serviceReceive];
 	}
 
+	/*
+	 * Receiver overrun: frames arrived faster than the ring could
+	 * be drained, or the FIFO filled because the bus could not keep
+	 * up. The hardware recovers by itself as soon as descriptors
+	 * become free - servicing the ring above is that recovery - so
+	 * there is nothing to reset here. What was missing was any
+	 * record that it happened at all.
+	 *
+	 * MPC and RNBC say how many frames were lost, so harvest them
+	 * now rather than waiting for the periodic sweep.
+	 */
+	if (cause & (E1000_ICR_RXO | E1000_ICR_RXSEQ)) {
+	    [self _serviceReceive];
+	    [self _harvestStatistics];
+
+	    rxOverruns++;
+	    if (rxOverruns == 1UL || (rxOverruns % 100UL) == 0UL) {
+		/*
+		 * The interface's own error count is echoed back so the
+		 * log shows what the rest of the system sees, not just
+		 * what this driver believes. They should track.
+		 */
+		IOLog("Pro1000: receive overrun %d (ICR 0x%08x),"
+		      " %d missed %d without a descriptor, if errors %d\n",
+		      (int)rxOverruns, (unsigned int)cause,
+		      (int)rxMissed, (int)rxNoBuffer,
+		      (network != nil) ? (int)[network inputErrors] : -1);
+	    }
+	}
+
 	if (cause & (E1000_ICR_TXDW | E1000_ICR_TXQE)) {
 	    netbuf_t queued;
+
+	    [self _reapTransmit];
 
 	    /*
 	     * Cancel the watchdog armed by -transmit:. Leaving it
@@ -1410,6 +1688,18 @@ mcastHash(unsigned char *addr)
 		      ? "up" : "down");
 	}
     } while (cause != 0UL);
+
+    /*
+     * Periodic sweep. The statistics registers stick at 0xFFFFFFFF
+     * instead of wrapping, so they have to be read long before they can
+     * get there; on the other hand reading nineteen registers on every
+     * interrupt would be a real cost at gigabit rates. Every 4096
+     * interrupts is far more often than any counter could saturate and
+     * cheap enough to disappear into the noise.
+     */
+    if (++irqSinceHarvest >= 4096) {
+	[self _harvestStatistics];
+    }
 
     /*
      * Re-enable at the framework level, not just in IMS.
@@ -1451,12 +1741,32 @@ mcastHash(unsigned char *addr)
     next = (tail + 1) % NTXDESC;
 
     if (next == head) {
+	/*
+	 * IONetbufQueue frees the netbuf "without notice" once maxCount
+	 * is reached - its own header says so. Notice it here, or a
+	 * host that outruns the ring loses frames with nothing to show
+	 * for it.
+	 */
+	if ([transmitQueue count] >= [transmitQueue maxCount]) {
+	    txDropped++;
+	    if (network != nil) {
+		[network incrementOutputErrors];
+	    }
+	    if (txDropped == 1UL || (txDropped % 1000UL) == 0UL) {
+		IOLog("Pro1000: transmit queue full, %d frames dropped\n",
+		      (int)txDropped);
+	    }
+	}
 	[transmitQueue enqueue:pkt];
 	return;
     }
 
     length = nb_size(pkt);
     if (length > TXBUF_SIZE) {
+	txDropped++;
+	if (network != nil) {
+	    [network incrementOutputErrors];
+	}
 	nb_free(pkt);
 	return;
     }

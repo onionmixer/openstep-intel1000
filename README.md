@@ -5,8 +5,8 @@ Ethernet controllers, written from scratch.
 
 Verified on real hardware: an **Intel 82547EI** in a Fujitsu Intel 865G
 machine, reaching **172 Mbit/s transmit and 248 Mbit/s receive** —
-about 21× the 10 Mb card it sits beside — with zero errors over a
-512 MB / 670k-packet load test.
+about 21× the 10 Mb card it sits beside — over a 512 MB / 670k-packet
+load test.
 
 ```
 $ ping 192.0.2.190
@@ -40,6 +40,7 @@ problem that a single-chip driver simply does not have.
 | Receive (interrupt-driven, DMA ring) | Working |
 | Transmit (interrupt-driven, DMA ring) | Working |
 | Multicast filter (MTA hash) + promiscuous | Working, verified against the SDM's own worked example |
+| Error accounting and ring-exhaustion recovery | Working, verified by driving the ring into overrun on purpose |
 | Network stack integration (`enN`, ping, TCP) | Working |
 | Boot-time auto-load | Working |
 | Chip family beyond 82547EI | Implemented from the SDM and FreeBSD; **not tested on hardware** |
@@ -322,6 +323,37 @@ reboot, the second panics the kernel.
 To load at every boot, add the driver name to `"Active Drivers"` in
 `/private/Devices/System.config/Instance0.table` — note `Instance0.table`,
 not `Default.table`; the latter is only a template.
+
+## Where the error counts show up
+
+`netstat -i` prints two rows per interface, and **the error columns are
+only populated on the second one** — the `enN*` row with no address:
+
+```
+Name  Mtu   Network     Address          Ipkts Ierrs   Opkts Oerrs Coll
+en1   1500  192.0.2     192.0.2.190     299592     0  262457     0    0
+en1*  1500  none        none            299592 214279       0     0    0
+```
+
+Both rows are the same interface. Reading only the row that carries the
+address is an easy way to conclude the driver reports no errors when it
+is in fact reporting a great many.
+
+Those 214279 errors were produced deliberately, by flooding the
+interface with UDP faster than a 16-descriptor ring can be drained. The
+driver's own log agrees with the interface counter exactly:
+
+```
+Pro1000: receive overrun 10700 (ICR 0x000000d3), 107471 missed
+         106073 without a descriptor, if errors 213544
+```
+
+107471 + 106073 = 213544. `MPC` counts frames the receive FIFO had no
+room for; `RNBC` counts frames that arrived when the ring had no free
+descriptor. Neither ever reaches a descriptor, so neither can be seen
+any other way. The hardware resumes on its own once descriptors free
+up — there is nothing to reset — so what the driver adds is the record
+that it happened.
 
 ## Things worth knowing before changing this
 
