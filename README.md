@@ -311,17 +311,26 @@ beside it is only a template.
 Edit on a Linux host, build on the target over NFS. This is the loop
 used during development.
 
+Run these from the workspace root, one level above this directory —
+`nx-install-driver.sh` takes a path relative to the exported tree.
+
 ```sh
 cp etc/site.conf.sample etc/site.conf     # fill in addresses
 ./tools/gen-conf.sh
 
 sudo ./tools/serve-src.sh                 # export this tree over NFS
 ./tools/nx-mount.sh                       # mount it on the target
-./tools/nx-daemon.sh start                # remote-execution daemon
+./tools/nx-daemon.sh start                # restart after every reboot
 
-./tools/nx-install-driver.sh Pro1000      # build, install, verify
-./tools/nxrun.sh '/usr/etc/driverLoader D=Pro1000'
+./tools/nx-install-driver.sh openstep-intel1000/Pro1000
 ```
+
+`gcdsd` does not survive a reboot, and neither does the mount; both
+lines above are part of restarting work, not just of setting it up.
+
+The driver is activated at boot, so the way to pick up a new build is to
+reboot — `Load_Commands.sect` carries `DETACH`, which makes unloading an
+error by design.
 
 `nx-install-driver.sh` refuses to install a zero-length bundle and
 refuses to unload a driver that is already attached to the network

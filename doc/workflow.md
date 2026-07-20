@@ -43,7 +43,7 @@ sudo ./tools/serve-src.sh      # ① gnfsd - 워크스페이스를 NFS export
 | `tools/nxsh.sh` | telnet 대화형 | csh | 손으로 뒤져볼 때 |
 
 ```sh
-./tools/nx.sh 'cd /ndrv/openstep-intel1000/pcils && make'
+./tools/nx.sh 'cd /tmp && cc -O -o pcils /ndrv/openstep-intel1000/pcils/pcils.c'
 ./tools/nx.sh --get /tmp/out.txt out.txt      # 원격 → 호스트
 ./tools/nx.sh --put local.bin /tmp/in.bin     # 호스트 → 원격
 ```
@@ -80,12 +80,18 @@ grep -rn "IOMapPhysicalIntoIOTask" headers/
 
 소스는 호스트에서 편집한다. NFS 공유라 OPENSTEP이 바로 본다.
 
-```sh
-# 유저랜드 프로그램
-./tools/nx.sh 'cd /ndrv/openstep-intel1000/pcils && cc -O -Wall -o /tmp/pcils pcils.c && /tmp/pcils'
+**산출물을 공유 트리에 흘리지 않는다.** 빌드는 `i386_obj/`·`sym/`·
+`*.config/`를 잔뜩 만들고, 그 뒤에 있는 NFS 서버는 단일 스레드다.
 
-# 커널 드라이버 (NFS에서 직접 빌드하지 말고 /tmp로 복사해서 빌드)
+```sh
+# 유저랜드 프로그램 — 출력은 /tmp로
+./tools/nx.sh 'cd /tmp && cc -O -Wall -o pcils /ndrv/openstep-intel1000/pcils/pcils.c && ./pcils'
+
+# 커널 드라이버 — /tmp로 복사해서 빌드
 ./tools/nx.sh 'rm -rf /tmp/X && cp -r /ndrv/openstep-intel1000/pcils/PCIscan /tmp/X && cd /tmp/X && make'
+
+# 드라이버 번들은 그냥 이걸 쓴다 (위 과정 + 설치 + 크기 검증)
+./tools/nx-install-driver.sh openstep-intel1000/pcils/PCIscan
 ```
 
 - **OPENSTEP이 바뀐 소스를 못 볼 때**: 드물다 — 마운트 옵션에 `noac`가
