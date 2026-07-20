@@ -132,6 +132,23 @@ grep -rn "IOMapPhysicalIntoIOTask" headers/
 빌드 규약과 로드 커맨드(`CALL`/`START`/`WIRE`/`DETACH`)는
 [driverkit.md](driverkit.md) 참조.
 
+### 부팅 시 커널 메시지는 유실될 수 있다
+
+`/usr/adm/messages`에 드라이버의 부팅 로그가 **한 줄도 없는 부팅을
+관측했다**(2026-07-20). 드라이버가 로드되지 않은 것이 아니라 —
+`ifconfig`에 인터페이스가 정상적으로 있었다 — syslogd가 부팅 도중에
+붙으면서 그 이전 커널 메시지를 놓친 것이다. 증거는 로그가 단어 중간에서
+시작한다는 것이다:
+
+```
+Apr  5 07:34:49 nextonion mach: t up computer without a network
+Apr  5 07:34:49 nextonion mach: connection.
+```
+
+즉 **부팅 로그의 부재는 드라이버가 안 떴다는 뜻이 아니다.** 확인은
+`ifconfig`로 하고, 로그가 필요하면 런타임에 다시 유발한다(예:
+`nx-logcatch.sh` 가동 후 부하를 걸어 에러 경로를 태운다).
+
 ## 6. 커널이 죽었을 때
 
 **위험한 드라이버 시험 전에는 반드시 로그 수집기를 켠다.**
@@ -147,9 +164,10 @@ grep -rn "IOMapPhysicalIntoIOTask" headers/
 남고**, 대상이 죽어 있는 동안에도 읽을 수 있다. 실제로 이 도구 덕에
 82547EI의 리셋 행 원인을 한 번의 행으로 특정했다.
 
-위험한 변경은 **한 번에 하나씩** 올린다. Pro1000 드라이버는 `CALL`
-인자를 단계 선택자로 쓴다(`openstep-intel1000/NOTES.ko.md`). 한 단계가 행되면 그
-직전 단계의 로그가 이미 호스트에 있으므로 원인이 명확해진다.
+위험한 변경은 **한 번에 하나씩** 올린다. 브링업 단계에서는
+`Load_Commands.sect`의 `CALL` 인자를 단계 선택자로 써서 한 단계씩
+올렸다(지금 Pro1000에는 그 진입점이 없다 — `pcils/PCIscan`이 같은
+방식을 쓴다).
 
 
 드라이버 실험은 패닉을 부른다. 패닉이 나면 telnet·gcdsd·NFS가 전부

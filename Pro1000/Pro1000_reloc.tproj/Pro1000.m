@@ -1290,11 +1290,12 @@ mcastHash(unsigned char *addr)
      * prints.
      *
      * At boot the driver is loaded from /etc/rc before syslogd is
-     * running, so the first several lines it logs never reach
-     * /usr/adm/messages - the captured text has been seen starting
-     * mid-word. Which part this is, and whether it is a part anyone has
-     * actually tested, are the two things most worth knowing, so they
-     * are repeated here where the log reliably survives.
+     * running, and syslogd only captures from wherever it attaches -
+     * the text has been seen starting mid-word. Which boot lines
+     * survive is therefore a matter of timing, and a boot where none
+     * of them do has been observed. Carrying the identity here at
+     * least gives it every chance: this line is also printed whenever
+     * the interface is re-enabled, long after syslogd is up.
      */
     linkUp = (regRead(regBase, E1000_STATUS) & E1000_STATUS_LU) ? YES : NO;
 
@@ -1695,10 +1696,13 @@ mcastHash(unsigned char *addr)
 	/*
 	 * Link status change.
 	 *
-	 * The SDM is blunt about what losing carrier means: "Indication
-	 * that the link is not up disables MAC operation." Transmits
-	 * stop completing, so the watchdog in -timeoutOccurred has to
-	 * know about this - see there.
+	 * The SDM says "indication that the link is not up disables MAC
+	 * operation", which reads as though transmits would stop
+	 * completing. Measured, they do not: over a two-minute unplug
+	 * with TCP retransmitting throughout, the watchdog in
+	 * -timeoutOccurred never fired once. The descriptor engine goes
+	 * on completing descriptors without a carrier and the frames are
+	 * simply lost on the wire.
 	 *
 	 * Speed and duplex need no programming of ours. CTRL.SLU|ASDE
 	 * was set at enable time, and auto-speed detection makes the
@@ -1731,7 +1735,7 @@ mcastHash(unsigned char *addr)
 		    }
 		} else {
 		    IOLog("Pro1000: link down - carrier lost,"
-			  " transmits will not complete until it returns\n");
+			  " frames sent from now on go nowhere\n");
 		}
 	    }
 	}

@@ -41,7 +41,7 @@ Subsystem: [10cf:11bc] Fujitsu
   configuration."* config space·BAR·IRQ 할당이 전부 정상이라
   DriverKit의 PCI 자동감지가 그대로 통한다.
 - **자작 `Pro1000` 드라이버가 잡고 있다** — `en1`, 부팅 시 자동 로드.
-  실측 172(송신)/248(수신) Mbit/s — tulip 대비 약 21배.
+  실측 송신 145~172 / 수신 248 Mbit/s — tulip 대비 약 21배.
 
 ### 03:0b.0 — DEC 21041 Tulip 10Mb (현재 en0, 원격 접속 생명줄)
 

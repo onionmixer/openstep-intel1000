@@ -212,10 +212,12 @@ Usage: /usr/etc/driverLoader <operation> [v(verbose)]
 `InstanceN.table`이 있는 드라이버에 대해서만 그렇게 한다(위 "드라이버가
 실제로 활성화되는 구조" 참조). 추측이 아니라 실측으로 규명된 것이다.
 
-개발 중에는 `Load_Commands.sect`의 `CALL` 진입점에서 config space를
-직접 훑어 장치를 찾는 자립 경로를 두면 매칭에 의존하지 않고 진행할 수
-있다 (`openstep-intel1000/Pro1000/Pro1000_reloc.tproj/Pro1000.m`이 두 경로를 모두 가진
-예다).
+매칭이 아직 이해되지 않은 단계에서는 `Load_Commands.sect`의 `CALL`
+진입점에서 config space를 직접 훑는 자립 경로를 두면 진행할 수 있다.
+현재 그 방식을 쓰는 것은 `openstep-intel1000/pcils/PCIscan`이다 —
+하드웨어를 주장하지 않아 애초에 probe 대상이 아니다. Pro1000도
+브링업 중에는 이 경로를 썼으나, `driverLoader`와 인스턴스 테이블이
+규명된 뒤 제거했다(현재 로드 커맨드는 `WIRE`/`START`/`DETACH`뿐).
 
 ## 인터럽트를 받으려면 세 가지가 다 맞아야 한다
 
@@ -224,12 +226,12 @@ intel1000에서 인터럽트가 전달되지 않아 오래 헤맸다. 원인이 
 
 **1. device description이 인터럽트를 알아야 한다.**
 PCI config space에 IRQ가 있어도 DriverKit이 안다는 보장이 없다.
-`+probe:`에서 확인할 것:
+`[devDesc numInterrupts]`가 그 답이며, Pro1000은 그 값을 활성화 요약
+줄에 실어 둔다:
 
-```objc
-IOLog("... %d interrupt(s), first %d\n",
-      [devDesc numInterrupts],
-      ([devDesc numInterrupts] > 0) ? [devDesc interrupt] : -1);
+```
+Pro1000: 82547EI enabled, 0 irq, RCTL 0x04008002 ...
+                            ^^^^^
 ```
 
 0이면 `-interruptOccurred`는 영원히 호출되지 않는다. `InstanceN.table`에

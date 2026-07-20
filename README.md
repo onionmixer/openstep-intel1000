@@ -4,9 +4,8 @@ An OPENSTEP 4.2 / NeXTSTEP DriverKit driver for Intel 8254x gigabit
 Ethernet controllers, written from scratch.
 
 Verified on real hardware: an **Intel 82547EI** in a Fujitsu Intel 865G
-machine, reaching **172 Mbit/s transmit and 248 Mbit/s receive** —
-about 21× the 10 Mb card it sits beside — over a 512 MB / 670k-packet
-load test.
+machine: **145–172 Mbit/s transmit and 248 Mbit/s receive**, about 21×
+the 10 Mb card it sits beside, over a 512 MB / 670k-packet load test.
 
 ```
 $ ping 192.0.2.190
@@ -14,8 +13,13 @@ $ ping 192.0.2.190
 4 packets transmitted, 4 received, 0% packet loss
 
 nextonion# netstat -i
-en1  1500  192.0.2    192.0.2.190   295902 Ipkts 0 Ierrs  377104 Opkts 0 Oerrs 0 Coll
+Name  Mtu   Network   Address        Ipkts Ierrs   Opkts Oerrs Coll
+en1   1500  192.0.2   192.0.2.190   295902     0  377104     0    0
+en1*  1500  none      none          295902     0       0     0    0
 ```
+
+Both rows are the same interface, and the second is the one that carries
+error counts — see "Where the error counts show up" below.
 
 ## Why this exists
 
@@ -261,7 +265,7 @@ Three things in that window are worth reading carefully.
 
 **The driver is listed by name.** `Intel 8254x Gigabit Ethernet Adapter`
 comes from `"Long Name"` in `English.lproj/Localizable.strings`, and the
-`(v0.1)` from `"Version"` in the table. The key on the strings file's
+`(v0.1)` in the shot from `"Version"`, which now reads `1.0`. The key on the strings file's
 first line has to match `"Server Name"` in `Default.table`. If the
 strings are missing Configure.app has nothing to look up and displays
 the key itself — this driver first appeared there as literally
@@ -344,16 +348,20 @@ Both rows are the same interface. Reading only the row that carries the
 address is an easy way to conclude the driver reports no errors when it
 is in fact reporting a great many.
 
-Those 214279 errors were produced deliberately, by flooding the
-interface with UDP faster than a 16-descriptor ring can be drained. The
-driver's own log agrees with the interface counter exactly:
+Those errors were produced deliberately, by flooding the interface with
+UDP faster than a 16-descriptor ring can be drained. The driver logs its
+own tally next to the interface's, so the two can be compared at the
+same instant:
 
 ```
 Pro1000: receive overrun 10700 (ICR 0x000000d3), 107471 missed
          106073 without a descriptor, if errors 213544
 ```
 
-107471 + 106073 = 213544. `MPC` counts frames the receive FIFO had no
+107471 + 106073 = 213544 — the driver's two counters account for the
+interface's error total exactly. (The `netstat` snapshot above reads
+214279 because it was taken a little later, after the flood had run on
+past that log line.) `MPC` counts frames the receive FIFO had no
 room for; `RNBC` counts frames that arrived when the ring had no free
 descriptor. Neither ever reaches a descriptor, so neither can be seen
 any other way. The hardware resumes on its own once descriptors free

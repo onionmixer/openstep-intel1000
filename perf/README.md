@@ -44,5 +44,5 @@ gcc -O2 -Wall -o nxperf-linux nxperf.c              # 호스트
 
 [../NOTES.ko.md](../NOTES.ko.md) "P5 — 처리량 실측" 참조.
 
-82547EI 172 Mbit/s 송신 / 248 Mbit/s 수신, 같은 기계의 tulip(DEC 21041)은
+82547EI 송신 145~172 Mbit/s(최고 172) / 수신 248 Mbit/s, 같은 기계의 tulip(DEC 21041)은
 8.15 Mbit/s — 약 21배다.
