@@ -17,6 +17,10 @@ NFS_SERVER=192.0.2.16
 # OPENSTEP에서 이 워크스페이스가 마운트되는 지점
 MOUNTPT=/ndrv
 
+# 대상 머신의 셸 프롬프트 (expect가 명령 종료를 판정하는 정규식).
+# NeXTSTEP csh의 기본 프롬프트는 "<hostname>:<번호>#" 형태다.
+NEXT_PROMPT='nextbox:[0-9]+#'
+
 # gcdsd 공유 토큰과 포트 (원격의 gcdsd.cnf와 일치해야 한다)
 GCDS_TOKEN=changeme
 GCDS_PORT=9910

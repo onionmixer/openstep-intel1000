@@ -28,13 +28,13 @@ expect {
 expect {
     -re {Password: ?}         { send "\r"; exp_continue }
     -re {TERM = \(unknown\)}  { send "vt100\r"; exp_continue }
-    -re {nextonion:[0-9]+#} {}
+    -re "$env(NEXT_PROMPT)" {}
     timeout           { puts stderr "nxrun: no shell prompt"; exit 2 }
 }
 log_user 1
 send -- "$cmd\r"
 expect {
-    -re {nextonion:[0-9]+#} {}
+    -re "$env(NEXT_PROMPT)" {}
     timeout { puts stderr "\nnxrun: command timeout (${timeout}s)"; exit 3 }
 }
 log_user 0

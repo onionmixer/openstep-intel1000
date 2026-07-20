@@ -1,0 +1,41 @@
+# --- 사이트 값: 실제 주소·계정·토큰 -------------------------------
+# 커밋되는 파일에는 실 IP를 넣지 않는다(예시는 RFC 5737 192.0.2.x).
+# 실제 값은 etc/site.conf 하나에만 두고, tools/site.sh가 읽는다.
+etc/site.conf
+etc/gcds.cnf
+HANDOFF.md
+
+# --- 참고 자료 (제3자·독점) ----------------------------------------
+# Intel SDM, FreeBSD/Minix e1000 소스, NeXT 예제·문서. 재배포하지
+# 않는다 — 재취득 방법은 ref/README.md 에 있다.
+ref/*
+!ref/README.md
+
+# --- 빌드 산출물 ---------------------------------------------------
+*.o
+*.obj
+i386_obj/
+sym/
+# 드라이버 번들 산출물 (디렉터리로 생기지만 경로 검사 편의를 위해 둘 다)
+*.config
+*.config/
+.lastBuildTime
+Makefile.dependencies
+
+# 유저랜드 도구 빌드 결과 (네이티브 바이너리)
+pcils/pcils
+perf/nxperf-linux
+
+# 배포 tar는 tools/make-dist.sh 로 재생성한다
+dist/
+
+# 실기에서 밀어낸 커널 로그 (재생성 가능)
+logs/
+
+# --- 잡동사니 ------------------------------------------------------
+*~
+.DS_Store
+core
+.claude/
+.vscode/
+*.swp

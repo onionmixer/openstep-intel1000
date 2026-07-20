@@ -30,8 +30,10 @@ ROOT="$_site_root"
 : "${MOUNTPT:=/ndrv}"
 : "${GCDS_TOKEN:=changeme}"
 : "${GCDS_PORT:=9910}"
+: "${NEXT_PROMPT:=[a-zA-Z0-9_-]+:[0-9]+#}"
 
 export NEXT_HOST NFS_SERVER NFS_EXPORT MOUNTPT GCDS_TOKEN GCDS_PORT ROOT
+export NEXT_PROMPT
 
 if [ "$(basename "${0:-}")" = "site.sh" ]; then
     echo "NEXT_HOST  = $NEXT_HOST"
