@@ -1,0 +1,8 @@
+Title Pro1000
+Version 1.0
+Description OPENSTEP 4.2 (i386) DriverKit driver for Intel 8254x (82540 / 82545 / 82547) gigabit Ethernet. Installs the driver bundle into /private/Devices (real path /private/Drivers/i386). After installing, activate it with the Configure application, or reboot if the driver is already configured.
+DefaultLocation /private/Drivers/i386
+Application NO
+Relocatable NO
+NeedsAuthorization YES
+DisableSparseInstall YES

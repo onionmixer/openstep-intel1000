@@ -907,3 +907,23 @@ Pro1000: receive overrun 10000 ... 82132 missed 99198 ..., if errors 181330
   생기면 그때 구현한다(82547은 EERD가 아니라 EECD 비트뱅잉).
 - 송신 배치. 큐잉은 `IONetbufQueue`로 구현돼 있으나 여러 디스크립터를
   한 번에 밀어 넣는 배치 전송은 하지 않는다.
+
+## Installer 패키지(.pkg) (2026-07-24)
+
+일반 사용자용 GUI 설치를 위해 드라이버를 OPENSTEP 네이티브 `.pkg`로 묶었다.
+
+- 도구: `/NextAdmin/Installer.app/package`
+  (사용법 `package [-B] [-f] root-dir info-file [tiff-file] [-d dest-dir]`).
+- 정의 `pkg/Pro1000.info`: `DefaultLocation /private/Drivers/i386`
+  (`/private/Devices`의 실경로 — Installer가 심볼릭 링크에 의존하지 않게
+  실경로를 지정), `Application NO`, `Relocatable NO`.
+- 빌드 스크립트 `pkg/build-pkg.sh`: 빌드된 `Pro1000.config`를 스테이징 후
+  package 실행. OPENSTEP엔 `dirname`이 없어 경로 파생은 sed로, package는
+  프롬프트 방지로 stdin을 `/dev/null`로. **gz 없이 `.tar`까지만** 산출.
+- 산출물 `pkg/Pro1000.pkg.tar`(커밋). 내부 `Pro1000.tar.Z`가 이미 압축이라
+  gz는 무의미. (참고: `dist/`는 gitignore된 소스 tar 위치라 바이너리
+  패키지는 `pkg/`에 둔다.)
+- **설치는 번들 복사까지만** 한다. 로드/활성화는 Configure.app(또는 이미
+  구성돼 있으면 재부팅)로. `.pkg`가 드라이버를 자동 로드하지는 않는다
+  (네트워크 스택에 붙은 드라이버 언로드는 패닉 위험이라 post-install
+  자동 로드 스크립트는 넣지 않았다).

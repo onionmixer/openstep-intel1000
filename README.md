@@ -182,6 +182,8 @@ doc/                   OPENSTEP driver development notes (Korean)
   driverkit.md           build chain, loading, interrupts, DMA, hazards
   workflow.md            edit-on-host / build-on-target cycle
   hardware.md            the test machine's inventory
+pkg/                   Installer package: Pro1000.info + build-pkg.sh, and
+                       the prebuilt Pro1000.pkg.tar (committed)
 tools/                 host-side helpers (copies; shared with sibling work)
 etc/site.conf.sample   site addresses template
 perf/                  nxperf — throughput measurement, one source for both ends
@@ -194,6 +196,34 @@ ref/                   third-party references (not committed; see ref/README.md)
 The driver is compiled **on the target** with NeXT cc 2.7.2.1. There is
 no cross-compiler, so whatever route you take, the build happens on the
 OPENSTEP machine itself.
+
+### From the Installer package (.pkg)
+
+The quickest install, if you have `pkg/Pro1000.pkg.tar` and do not want to
+build anything: unpack it on the machine and double-click `Pro1000.pkg` —
+Installer.app copies the driver bundle into `/private/Devices` (real path
+`/private/Drivers/i386`):
+
+```sh
+gnutar xf .../openstep-intel1000/pkg/Pro1000.pkg.tar
+open Pro1000.pkg
+```
+
+This only **installs** the bundle; it does not load it. Activate the
+driver with **Configure.app** (add the Intel gigabit driver and set its
+PCI instance / IRQ — see below), or reboot if it is already configured.
+As with every route you must still tell the driver where your card is
+(`Instance0.table`).
+
+To rebuild the package itself on an OPENSTEP box:
+
+```sh
+./tools/nx-install-driver.sh openstep-intel1000/Pro1000 -n   # build Pro1000.config
+sh pkg/build-pkg.sh /tmp/Pro1000/Pro1000.config pkg          # -> pkg/Pro1000.pkg(.tar)
+```
+
+The package is a plain `tar` with no gzip — its payload `Pro1000.tar.Z`
+is already compressed.
 
 ### From the tarball, on the machine
 
